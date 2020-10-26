@@ -1,7 +1,22 @@
+""" making any sort of working demo using keras tuner
+
+    so then I can isolate what' snot working in my code by moving that working eample closer to my
+    config.yml init method.
+"""
+
 from tensorflow import keras
 from tensorflow.keras import layers
 from kerastuner.tuners import RandomSearch
 import kerastuner.engine.hyperparameters as hp
+import tensorflow.keras.datasets.mnist as mnist
+
+
+def get_mnist_dataset():
+    """ just to play around """
+    train, test = mnist.load_data(path="mnist.npz")
+    x_train, y_train = train
+    x_test, y_test = test
+    return {"x_train": x_train, "y_train": y_train, "x_test": x_test, "y_test": y_test}
 
 
 def model_builder(hp):
@@ -24,4 +39,27 @@ def model_builder(hp):
 
     return model
 
-m = model_builder(hp)
+tuner = RandomSearch(
+    model_builder,
+    objective='val_accuracy',
+    max_trials=5,
+    executions_per_trial=3,
+    directory='my_dir',
+    project_name='helloworld')
+
+# You can print a summary of the search space:
+tuner.search_space_summary()
+
+# ok next we get data, let's use the MNIST one for simplicity, as we already do in our code
+data_dict = get_mnist_dataset()
+x = data_dict["x_train"]
+y = data_dict["y_train"]
+x_val = data_dict["x_test"]
+y_val = data_dict["y_test"]
+
+# call the tuner on that
+
+tuner.search(x, y, epochs=5, validation_data=(x_val, y_val))
+models = tuner.get_best_models(num_models=2)
+tuner.results_summary()
+
