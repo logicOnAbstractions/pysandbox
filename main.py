@@ -7,7 +7,6 @@
 from tensorflow import keras
 from tensorflow.keras import layers
 from kerastuner.tuners import RandomSearch
-import kerastuner.engine.hyperparameters as hp
 import tensorflow.keras.datasets.mnist as mnist
 
 
@@ -22,6 +21,7 @@ def get_mnist_dataset():
 def model_builder(hp):
     model = keras.Sequential()
     model.add(keras.layers.Flatten(input_shape=(28, 28)))
+    print(f"dims with Sequential() build: {model.output_shape}")
 
     # Tune the number of units in the first Dense layer
     # Choose an optimal value between 32-512
@@ -39,13 +39,54 @@ def model_builder(hp):
 
     return model
 
-tuner = RandomSearch(
-    model_builder,
-    objective='val_accuracy',
-    max_trials=5,
-    executions_per_trial=3,
-    directory='my_dir',
-    project_name='helloworld')
+
+
+def model_builder_functional(hp):
+
+    input_lay = keras.layers.Input(shape=(28,28))
+    flat = keras.layers.Flatten(input_shape=(28,28))(input_lay)
+
+    print(f"dims with functiona pi build: {flat}")
+    hp_units = hp.Int(name='units', min_value=32, max_value=512, step=32)
+    middle_lay1 = keras.layers.Dense(units=hp_units, activation="relu")(flat)
+    ouput_lay   = keras.layers.Dense(units=10, activation="softmax")(middle_lay1)
+
+    model = keras.Model(input_lay, ouput_lay)
+
+    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
+                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                  metrics=['accuracy'])
+
+    return model
+
+def model_builder_functional_test(hp):
+
+    input_lay = keras.layers.Input(shape=(28,28))
+    flat = keras.layers.Flatten(input_shape=(28,28))(input_lay)
+
+    print(f"dims with functiona pi build: {flat}")
+    # hp_units = hp.Int(name='units', min_value=32, max_value=512, step=32)
+    hp_units = hp.Int(name='units', min_value=32, max_value=512, step=32)
+
+
+    middle_lay1 = keras.layers.Dense(units=hp_units, activation="relu")(flat)
+    ouput_lay   = keras.layers.Dense(units=10, activation="softmax")(middle_lay1)
+
+    model = keras.Model(input_lay, ouput_lay)
+
+    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
+                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                  metrics=['accuracy'])
+
+    return model
+#
+# tuner = RandomSearch(model_builder, objective='val_accuracy', max_trials=5, executions_per_trial=2, directory='my_dir', project_name='helloworld')
+# tuner = RandomSearch(model_builder_functional, objective='val_accuracy', max_trials=5, executions_per_trial=2, directory='my_dir', project_name='helloworld')
+tuner = RandomSearch(model_builder_functional_test, objective='val_accuracy', max_trials=5, executions_per_trial=2, directory='my_dir', project_name='helloworld')
+
+
 
 # You can print a summary of the search space:
 tuner.search_space_summary()
@@ -57,9 +98,10 @@ y = data_dict["y_train"]
 x_val = data_dict["x_test"]
 y_val = data_dict["y_test"]
 
+print(f"label shapes: {y.shape} {y_val.shape}")
 # call the tuner on that
 
-tuner.search(x, y, epochs=5, validation_data=(x_val, y_val))
+tuner.search(x, y, epochs=2, validation_data=(x_val, y_val))
 models = tuner.get_best_models(num_models=2)
 tuner.results_summary()
 
