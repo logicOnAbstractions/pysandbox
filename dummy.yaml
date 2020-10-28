@@ -1,0 +1,22 @@
+template:
+  main_program:
+    engine: PredictionEngine
+  architecture:
+    #describes the architecture of the network, layer by layers. we parse this into actual keras objects
+    preprocessor: []                    # expected a list of processor layers if any. an empty list [] evaluates to false in python
+    inputs:
+      layer_type: Input
+      shape: [ 28,28 ]
+    outputs:
+      layer_type: Dense
+      units: 10
+      activation: softmax
+    # from the docs - all activation layers can be passed as string arguments (https://keras.io/api/layers/activations/). So no need to complexify things at this point by parsing activation layers as separate objects
+    # the only drawback from this is that it doesn't seem possible to override default arguments. so fine-tuning isn't as possible. Will refactor if that ever becomes a limitation
+    layers:
+      - layer_type: Dense
+        units: 128
+        activation: relu
+        metrics: []
+        loss: null
+
