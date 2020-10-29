@@ -7,101 +7,84 @@
 from tensorflow import keras
 from tensorflow.keras import layers
 from kerastuner.tuners import RandomSearch
+import tensorflow as tf
+import tensorflow.keras.datasets.cifar10 as cifar10
 import tensorflow.keras.datasets.mnist as mnist
+from tensorflow.keras.layers.experimental.preprocessing import CenterCrop
+from tensorflow.keras.layers.experimental.preprocessing import Rescaling
+import numpy as np
 
+HEIGHT = 200
+WIDTH = 200
 
-def get_mnist_dataset():
+def get_cifer10_dataset():
     """ just to play around """
-    train, test = mnist.load_data(path="mnist.npz")
+    train, test = cifar10.load_data()
     x_train, y_train = train
     x_test, y_test = test
     return {"x_train": x_train, "y_train": y_train, "x_test": x_test, "y_test": y_test}
 
+def get_mnist_dataset():
+    train, test = mnist.load_data()
+    x_train, y_train = train
+    x_test, y_test = test
+    return {"x_train": x_train, "y_train": y_train, "x_test": x_test, "y_test": y_test}
 
-def model_builder(hp):
-    model = keras.Sequential()
-    model.add(keras.layers.Flatten(input_shape=(28, 28)))
-    print(f"dims with Sequential() build: {model.output_shape}")
+def prepare_data(training_data):
 
-    # Tune the number of units in the first Dense layer
-    # Choose an optimal value between 32-512
-    hp_units = hp.Int('units', min_value=32, max_value=512, step=32)
-    model.add(keras.layers.Dense(units=hp_units, activation='relu'))
-    model.add(keras.layers.Dense(10))
+    # first preprocess the data
+    # training_data = np.random.randint(0, 256, size=(64, 200, 200, 3)).astype("float32")
+    print(f"Shape: {training_data.shape},")
+    print(f"Min: {np.min(training_data)},")
+    print(f"Max: {np.max(training_data)},")
+    cropper = CenterCrop(height=32, width=32)
+    scale = 0.00392156862745098                 # or 1.0 /255
+    scaler = Rescaling(scale=scale)
+    training_data = scaler(cropper(training_data))
+    print(f"Shape: {training_data.shape},")
+    print(f"Min: {np.min(training_data)},")
+    print(f"Max: {np.max(training_data)},")
+    # print(training_data)
 
-    # Tune the learning rate for the optimizer
-    # Choose an optimal value from 0.01, 0.001, or 0.0001
-    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
+    return training_data
 
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                  metrics=['accuracy'])
+def build_model():
+    inputs = keras.Input(shape=(HEIGHT, WIDTH, 3))
 
+    # making things simple, I don't CenterCrop, just set the input to whatever I'm feeding it
+    # I do rescale to 0-1 values
+    x = Rescaling(scale=1.0 / 255)(inputs)
+
+    # this basically the doc's architecture
+    x = layers.Conv2D(filters=32, kernel_size=(3, 3), activation="relu", )(x)
+    x = layers.MaxPooling2D(pool_size=(2, 2))(x)
+    x = layers.Conv2D(filters=32, kernel_size=(3, 3), activation="relu",)(x)
+    x = layers.MaxPooling2D(pool_size=(2, 2))(x)
+    x = layers.Conv2D(filters=32, kernel_size=(3, 3), activation="relu",)(x)
+    x = layers.GlobalAveragePooling2D()(x)
+    outputs = layers.Dense(10, activation="softmax")(x)
+    model = keras.Model(inputs=inputs, outputs=outputs)
     return model
 
 
+# fake data, easier to play with shapes  than with the actual CIFAR10 data to debug
+# shape is (500, 200, 200, 3), cifar10's is (60000, 32, 32, 3)
+data = np.random.randint(0, 255, size=(500, HEIGHT, WIDTH, 3)).astype("float32")
+# shape is (500,1) cifar10's is (60000,1). Just 10 categories to match the output layer
+labels = np.random.randint(0,9, size=(500,)).astype("int8")
 
-def model_builder_functional(hp):
+print("got fake data... ")
+model = build_model()
+print("model built... ")
+model.summary()
+model.compile(optimizer=keras.optimizers.RMSprop(learning_rate=1e-3),
+              loss=keras.losses.CategoricalCrossentropy())
+print("model compile...")
+model.fit(data, labels)
+print("done")
 
-    input_lay = keras.layers.Input(shape=(28,28))
-    flat = keras.layers.Flatten(input_shape=(28,28))(input_lay)
-
-    print(f"dims with functiona pi build: {flat}")
-    hp_units = hp.Int(name='units', min_value=32, max_value=512, step=32)
-    middle_lay1 = keras.layers.Dense(units=hp_units, activation="relu")(flat)
-    ouput_lay   = keras.layers.Dense(units=10, activation="softmax")(middle_lay1)
-
-    model = keras.Model(input_lay, ouput_lay)
-
-    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                  metrics=['accuracy'])
-
-    return model
-
-def model_builder_functional_test(hp):
-
-    input_lay = keras.layers.Input(shape=(28,28))
-    flat = keras.layers.Flatten(input_shape=(28,28))(input_lay)
-
-    print(f"dims with functiona pi build: {flat}")
-    # hp_units = hp.Int(name='units', min_value=32, max_value=512, step=32)
-    hp_units = hp.Int(name='units', min_value=32, max_value=512, step=32)
-
-
-    middle_lay1 = keras.layers.Dense(units=hp_units, activation="relu")(flat)
-    ouput_lay   = keras.layers.Dense(units=10, activation="softmax")(middle_lay1)
-
-    model = keras.Model(input_lay, ouput_lay)
-
-    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_learning_rate),
-                  loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-                  metrics=['accuracy'])
-
-    return model
 #
-# tuner = RandomSearch(model_builder, objective='val_accuracy', max_trials=5, executions_per_trial=2, directory='my_dir', project_name='helloworld')
-# tuner = RandomSearch(model_builder_functional, objective='val_accuracy', max_trials=5, executions_per_trial=2, directory='my_dir', project_name='helloworld')
-tuner = RandomSearch(model_builder_functional_test, objective='val_accuracy', max_trials=5, executions_per_trial=2, directory='my_dir', project_name='helloworld')
-
-
-
-# You can print a summary of the search space:
-tuner.search_space_summary()
-
-# ok next we get data, let's use the MNIST one for simplicity, as we already do in our code
-data_dict = get_mnist_dataset()
-x = data_dict["x_train"]
-y = data_dict["y_train"]
-x_val = data_dict["x_test"]
-y_val = data_dict["y_test"]
-
-print(f"label shapes: {y.shape} {y_val.shape}")
-# call the tuner on that
-
-tuner.search(x, y, epochs=2, validation_data=(x_val, y_val))
-models = tuner.get_best_models(num_models=2)
-tuner.results_summary()
-
+# processed_data = model(data)
+# print(processed_data.shape)
+# dataset = tf.data.Dataset.from_tensor_slices((data, labels)).batch(20)
+# model.fit(dataset)
