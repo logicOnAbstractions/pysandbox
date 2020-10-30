@@ -1,0 +1,13 @@
+about
+------------
+
+a small sample project that illustrates what you can do with `click`
+
+quick notes
+----------------
+
+#. you can easily:
+    #. provide cmd lines arguments at launch with flags (--arg, etc.)
+    #. have default values placed for those if not provide
+    #. have `click` prompt user if not provide
+    #
